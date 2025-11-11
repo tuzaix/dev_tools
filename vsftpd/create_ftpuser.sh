@@ -182,8 +182,7 @@ create_shared_group() {
 create_ftp_user() {
     local username=$1
     # 使用openssl生成随机密码
-    # local user_password=$(openssl rand -base64 "$PASSWORD_LENGTH")
-    local user_password="Besteffie@2025"
+    local user_password=$(openssl rand -base64 "$PASSWORD_LENGTH")
 
     # 创建用户，将其家目录设置为FTP根目录下的子目录，并禁止其登录shell [2,5](@ref)
     useradd -m -d "$FTP_BASE/$username" -s /sbin/nologin -G "$SHARED_GROUP" "$username"
