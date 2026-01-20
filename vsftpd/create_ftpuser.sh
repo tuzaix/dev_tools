@@ -13,6 +13,8 @@ PASSWORD_LENGTH=12
 WORK_USER="work"
 # 新用户名，通过脚本参数传入
 NEW_USER="$1"
+# 新用户密码，通过脚本参数传入
+NEW_PASS="$2"
 
 # vsftpd 配置文件路径
 VSFTPD_CONF="/etc/vsftpd.conf"
@@ -49,8 +51,8 @@ check_root() {
 
 # 检查必要参数
 check_arguments() {
-    if [ $# -ne 1 ]; then
-        echo "用法: $0 <新用户名>"
+    if [ $# -ne 2 ]; then
+        echo "用法: $0 <新用户名> <密码>"
         exit 1
     fi
 }
@@ -178,22 +180,18 @@ create_shared_group() {
     fi
 }
 
-# 创建FTP用户并设置随机密码
+# 创建FTP用户并设置指定密码
 create_ftp_user() {
     local username=$1
-    # 使用openssl生成随机密码
-    local user_password=$(openssl rand -base64 "$PASSWORD_LENGTH")
+    local password=$2
 
     # 创建用户，将其家目录设置为FTP根目录下的子目录，并禁止其登录shell [2,5](@ref)
     useradd -m -d "$FTP_BASE/$username" -s /sbin/nologin -G "$SHARED_GROUP" "$username"
     echo "已创建系统用户: $username"
 
     # 设置密码
-    echo "$username:$user_password" | chpasswd
-    echo "已为用户 '$username' 设置随机密码。"
-
-    # 返回生成的密码
-    echo "$user_password"
+    echo "$username:$password" | chpasswd
+    echo "已为用户 '$username' 设置指定密码。"
 }
 
 # 设置FTP用户目录权限
@@ -268,10 +266,10 @@ main() {
     # 更新pam vsftpd的配置，避免登陆530问题
     update_pam_vsftpd 
     create_shared_group
-    USER_PASSWORD=$(create_ftp_user "$NEW_USER")
+    create_ftp_user "$NEW_USER" "$NEW_PASS"
     setup_ftp_directory "$NEW_USER"
     # 注意：此处特意不调用 exempt_user_from_chroot，确保新用户被禁锢。
-    print_summary "$NEW_USER" "$USER_PASSWORD"
+    print_summary "$NEW_USER" "$NEW_PASS"
 }
 
 # 启动主程序
