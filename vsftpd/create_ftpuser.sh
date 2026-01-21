@@ -15,6 +15,8 @@ WORK_USER="work"
 NEW_USER="$1"
 # 新用户密码，通过脚本参数传入
 NEW_PASS="$2"
+# 子目录列表（可选），通过逗号分隔
+SUBDIRS="$3"
 
 # vsftpd 配置文件路径
 VSFTPD_CONF="/etc/vsftpd.conf"
@@ -51,8 +53,8 @@ check_root() {
 
 # 检查必要参数
 check_arguments() {
-    if [ $# -ne 2 ]; then
-        echo "用法: $0 <新用户名> <密码>"
+    if [ $# -lt 2 ]; then
+        echo "用法: $0 <新用户名> <密码> [目录列表(逗号分隔)]"
         exit 1
     fi
 }
@@ -212,6 +214,34 @@ setup_ftp_directory() {
     echo "已设置目录权限: $user_dir (所有者: $username, 组: $SHARED_GROUP, 权限: 770)"
 }
 
+# 创建子目录
+create_subdirectories() {
+    local username=$1
+    local user_dir="$FTP_BASE/$username"
+    local subdirs_str=$2
+
+    if [ -z "$subdirs_str" ]; then
+        echo "未指定子目录，跳过创建。"
+        return
+    fi
+
+    echo "正在创建子目录..."
+    # 将逗号替换为空格，以便循环处理
+    local IFS=','
+    for subdir in $subdirs_str; do
+        # 去除可能存在的空白字符（虽然通常参数传入不会有）
+        subdir=$(echo "$subdir" | xargs)
+        if [ -n "$subdir" ]; then
+            local full_path="$user_dir/$subdir"
+            mkdir -p "$full_path"
+            # 继承父目录的权限设置
+            chown "$username:$SHARED_GROUP" "$full_path"
+            chmod 770 "$full_path"
+            echo "  - 已创建子目录: $subdir"
+        fi
+    done
+}
+
 # 将用户添加到chroot例外列表（确保此用户不被禁锢）
 # 注意：由于我们的配置是 chroot_local_user=YES，添加进这个列表的用户将“不受”禁锢，可以向上切换目录。
 # 因此，我们不会将普通FTP用户添加进去，以确保他们被禁锢。work用户如果需要FTP登录并访问其他目录，则可以加入。
@@ -268,6 +298,8 @@ main() {
     create_shared_group
     create_ftp_user "$NEW_USER" "$NEW_PASS"
     setup_ftp_directory "$NEW_USER"
+    # 创建子目录（如果提供了参数）
+    create_subdirectories "$NEW_USER" "$SUBDIRS"
     # 注意：此处特意不调用 exempt_user_from_chroot，确保新用户被禁锢。
     print_summary "$NEW_USER" "$NEW_PASS"
 }
